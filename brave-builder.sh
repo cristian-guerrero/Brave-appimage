@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 APP=brave
+ROOT_DIR=$(pwd)
 
 # TEMPORARY DIRECTORY
 mkdir -p tmp
@@ -18,8 +19,13 @@ Stable=$(curl -Ls https://api.github.com/repos/brave/brave-browser/releases/late
 Releases=$(curl -Ls https://api.github.com/repos/brave/brave-browser/releases?per_page=100 | sed 's/[()",{} ]/\n/g' | grep -oi "https.*download.*linux.*zip$" | grep -v "symbol")
 LIST=$(printf "%b\n%b\n" "$Stable" "$Releases" | grep . )
 [ -z "$LIST" ] && exit 0
-LAUNCHER=$(curl -Ls https://raw.githubusercontent.com/ivan-hc/Brave-appimage/main/brave.desktop)
-[ -z "$LAUNCHER" ] && exit 0
+# Use local launcher if available, otherwise fallback to remote
+if [ -f "$ROOT_DIR/brave.desktop" ]; then
+	LAUNCHER_FILE="$ROOT_DIR/brave.desktop"
+else
+	wget -q https://raw.githubusercontent.com/ivan-hc/Brave-appimage/main/brave.desktop -O brave.desktop
+	LAUNCHER_FILE="$(pwd)/brave.desktop"
+fi
 
 _create_brave_appimage() {
 	if [ "$CHANNEL" != stable ]; then
@@ -35,21 +41,28 @@ _create_brave_appimage() {
 	mkdir "$APP"-"$arch".AppDir
 	unzip -qq ./*"$archref".zip -d "$APP"-"$arch".AppDir/ || exit 1
 	cd "$APP"-"$arch".AppDir || exit 1
-	echo "$LAUNCHER" > brave.desktop
+	cp "$LAUNCHER_FILE" brave.desktop
 	if [ "$CHANNEL" != stable ]; then
-		sed -i "s/Name=Brave/Name=Brave ${CHANNEL^}/g; s/Class=brave-browser/Class=brave-browser-$CHANNEL/g" brave.desktop
+		sed -i "s/Name=Brave/Name=Brave ${CHANNEL^}/g; s/StartupWMClass=brave-browser/StartupWMClass=brave-browser-$CHANNEL/g" brave.desktop
+		cp ./*128*.png "brave-$CHANNEL.png"
+		sed -i "s#Icon=.*#Icon=brave-$CHANNEL#g" brave.desktop
+	else
+		cp ./*128*.png brave.png
+		sed -i "s#Icon=.*#Icon=brave#g" brave.desktop
 	fi
-	cp ./*128*.png brave.png
-	sed -i "s#Icon=.*#Icon=$APP#g" brave.desktop
 	cd .. || exit 1
 
 	VERSION=$(echo "$DOWNLOAD_URL" | tr '/-' '\n' | grep "^[0-9].*" | head -1)
 
-	cat <<-'HEREDOC' >> ./"$APP"-"$arch".AppDir/AppRun
+	cat <<-HEREDOC > ./"$APP"-"$arch".AppDir/AppRun
 	#!/bin/sh
-	HERE="$(dirname "$(readlink -f "${0}")")"
-	export UNION_PRELOAD="${HERE}"
-	exec "${HERE}"/brave "$@"
+	HERE="\$(dirname "\$(readlink -f "\${0}")")"
+	export UNION_PRELOAD="\${HERE}"
+	if [ "$CHANNEL" != "stable" ]; then
+	  exec "\${HERE}"/brave --user-data-dir="\$HOME/.config/BraveSoftware/Brave-Browser-${CHANNEL^}" --class="brave-browser-$CHANNEL" "\$@"
+	else
+	  exec "\${HERE}"/brave "\$@"
+	fi
 	HEREDOC
 	chmod a+x ./"$APP"-"$arch".AppDir/AppRun
 
@@ -70,23 +83,22 @@ _create_brave_appimages() {
 	done
 }
 
-CHANNEL="stable"
-mkdir -p "$CHANNEL" && cp ./appimagetool ./"$CHANNEL"/appimagetool && cd "$CHANNEL" || exit 1
-_create_brave_appimages
-cd .. || exit 1
-mv ./"$CHANNEL"/*.AppImage* ./
+_build_channel() {
+	CHANNEL="$1"
+	mkdir -p "$CHANNEL" && cp ./appimagetool ./"$CHANNEL"/appimagetool && cd "$CHANNEL" || exit 1
+	_create_brave_appimages
+	cd .. || exit 1
+	mv ./"$CHANNEL"/*.AppImage* ./
+}
 
-CHANNEL="beta"
-mkdir -p "$CHANNEL" && cp ./appimagetool ./"$CHANNEL"/appimagetool && cd "$CHANNEL" || exit 1
-_create_brave_appimages
-cd .. || exit 1
-mv ./"$CHANNEL"/*.AppImage* ./
-
-CHANNEL="nightly"
-mkdir -p "$CHANNEL" && cp ./appimagetool ./"$CHANNEL"/appimagetool && cd "$CHANNEL" || exit 1
-_create_brave_appimages
-cd .. || exit 1
-mv ./"$CHANNEL"/*.AppImage* ./
+if [ "$1" = "stable" ]; then
+	_build_channel "stable"
+elif [ "$1" = "beta" ]; then
+	_build_channel "beta"
+else
+	_build_channel "stable"
+	_build_channel "beta"
+fi
 
 cd ..
 mv ./tmp/*.AppImage* ./

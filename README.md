@@ -21,7 +21,7 @@ Since March 23, 2025 I have decided to replace his scripts in the "AM" database 
 - My repository contains only one release, in order to speed up the download of others that are not "nightly", which on the contrary fill the "releases" section in https://github.com/srevinsaju/Brave-AppImage every day. This has always caused a slowdown when trying to install (for example) the "beta" build which gets buried in hundreds of pages.
 - My repository also contains builds for aarch64/ARM64, so it is better to show only one reference repository instead of 3, to avoid confusion.
 
-In my workflows, all six releases (three for each architecture) are complementary: if one fails, the others are not produced. And usually this risk is due to the burial of some "beta" among hundreds of pages where "nightly" reigns supreme, in the upstream repository.
+In my workflows, all four releases (two for each architecture: stable and beta) are complementary: if one fails, the others are not produced. And usually this risk is due to the burial of some "beta" among hundreds of pages where "nightly" reigns supreme, in the upstream repository.
 
 On the other hand, I have made my own a battle that he started: to push the upstream developers to create an official one.
 

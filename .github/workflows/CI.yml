@@ -7,6 +7,16 @@ on:
   schedule:
     - cron: "0 20 * * 0-6"
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Brave channel to build (stable, beta, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - stable
+          - beta
 
 jobs:
   build:
@@ -18,7 +28,7 @@ jobs:
       run: |
         sudo apt update && sudo apt install desktop-file-utils
         chmod a+x ./brave-builder.sh
-        ./brave-builder.sh
+        ./brave-builder.sh ${{ github.event.inputs.channel || 'all' }}
         mkdir dist
         mv *AppImage* dist/
 
@@ -78,15 +88,4 @@ jobs:
             draft: false
             files: |
               *beta*.AppImage*
-            repo_token: ${{ secrets.GITHUB_TOKEN }}
-
-        - name: release nightly
-          uses: marvinpinto/action-automatic-releases@latest
-          with:
-            title: Continuous Nightly
-            automatic_release_tag: continuous-nightly
-            prerelease: true
-            draft: false
-            files: |
-              *nightly*.AppImage*
             repo_token: ${{ secrets.GITHUB_TOKEN }}
