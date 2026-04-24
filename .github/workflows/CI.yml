@@ -9,14 +9,22 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Brave channel to build (stable, beta, all)'
+        description: 'Brave channel to build (stable, beta, nightly)'
         required: true
-        default: 'all'
+        default: 'stable'
         type: choice
         options:
-          - all
           - stable
           - beta
+          - nightly
+      flavor:
+        description: 'Brave flavor (browser, origin)'
+        required: true
+        default: 'browser'
+        type: choice
+        options:
+          - browser
+          - origin
 
 jobs:
   build:
@@ -28,14 +36,17 @@ jobs:
       run: |
         sudo apt update && sudo apt install desktop-file-utils
         chmod a+x ./brave-builder.sh
-        ./brave-builder.sh ${{ github.event.inputs.channel || 'all' }}
+        # Pass channel and flavor. If triggered by cron, default to stable browser.
+        FLAVOR=${{ github.event.inputs.flavor || 'browser' }}
+        CHANNEL=${{ github.event.inputs.channel || 'stable' }}
+        ./brave-builder.sh $CHANNEL $FLAVOR
         mkdir dist
         mv *AppImage* dist/
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4.4.0
       with:
-        name: Brave-Web-Browser-x86_64.AppImage
+        name: Brave-AppImages
         path: 'dist'
         
   release:
@@ -46,7 +57,7 @@ jobs:
       steps:
         - uses: actions/download-artifact@v4.1.8
           with:
-            name: Brave-Web-Browser-x86_64.AppImage
+            name: Brave-AppImages
 
         # Snapshot Release
         - name: get date
@@ -70,6 +81,7 @@ jobs:
         # Continuous releases
         - name: release stable
           uses: marvinpinto/action-automatic-releases@latest
+          if: contains(github.event.inputs.channel, 'stable') || github.event_name == 'schedule'
           with:
             title: Continuous Stable
             automatic_release_tag: continuous-stable
@@ -81,6 +93,7 @@ jobs:
 
         - name: release beta
           uses: marvinpinto/action-automatic-releases@latest
+          if: github.event.inputs.channel == 'beta'
           with:
             title: Continuous Beta
             automatic_release_tag: continuous-beta
@@ -89,3 +102,16 @@ jobs:
             files: |
               *beta*.AppImage*
             repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: release nightly
+          uses: marvinpinto/action-automatic-releases@latest
+          if: github.event.inputs.channel == 'nightly'
+          with:
+            title: Continuous Nightly
+            automatic_release_tag: continuous-nightly
+            prerelease: true
+            draft: false
+            files: |
+              *nightly*.AppImage*
+            repo_token: ${{ secrets.GITHUB_TOKEN }}
+
